@@ -1,11 +1,31 @@
 const { DisconnectReason, makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys')
+const { default: pino } = require('pino')
+const readline = require('readline')
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+const question = (text) => new Promise((resolve) => rl.question(text, resolve))
+
 
 async function connectToWhatsapp() {
+    const usingPairingCode = process.argv.includes('--pairing-code')
     const { state, saveCreds } = await useMultiFileAuthState('auth')
+
     const sock = makeWASocket({
-        printQRInTerminal: true,
-        auth: state
+        printQRInTerminal: !usingPairingCode,
+        auth: state,
+        logger: pino({ level: 'silent' })
     })
+
+    if (usingPairingCode && !sock.authState.creds.registered) {
+        setTimeout(async () => {
+            let phone = await question('Enter phone number: ')
+            const code = await sock.requestPairingCode(phone)
+
+            console.log(code)
+        }, 5000)
+    }
+
+    sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update
@@ -17,10 +37,9 @@ async function connectToWhatsapp() {
                 connectToWhatsapp()
             }
         } else if (connection === 'open') {
-            console.log('connected')
+            console.log('Successfully connected to: ' + JSON.stringify(sock.user, null, 2))
         }
     })
-    sock.ev.on('creds.update', saveCreds)
 
     // listen for new messages
     sock.ev.on('messages.upsert', async (m) => {
