@@ -1,12 +1,13 @@
 const { DisconnectReason, makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys')
 const { default: pino } = require('pino')
 const readline = require('readline')
+const handler = require('./handler')
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 const question = (text) => new Promise((resolve) => rl.question(text, resolve))
 
 
-async function connectToWhatsapp() {
+async function connectToWhatsapp(callback) {
     const usingPairingCode = process.argv.includes('--pairing-code')
     const { state, saveCreds } = await useMultiFileAuthState('auth')
 
@@ -34,26 +35,17 @@ async function connectToWhatsapp() {
             console.log('connection closed', lastDisconnect.error, 'reconnection', shouldReconnect)
 
             if (shouldReconnect) {
-                connectToWhatsapp()
+                connectToWhatsapp(sock => {
+                    handler(sock)
+                })
             }
         } else if (connection === 'open') {
             console.log('Successfully connected to: ' + JSON.stringify(sock.user, null, 2))
         }
     })
 
-    // listen for new messages
-    sock.ev.on('messages.upsert', async (m) => {
-        if (m.messages[0].key.fromMe) {
-            return
-        }
-
-        console.log('message from : ' + JSON.stringify(m.messages[0].pushName))
-        console.log('message : ' + JSON.stringify(m.messages[0].message.conversation))
-
-        console.log('replying to', m.messages[0].key.remoteJid)
-        await sock.sendMessage(m.messages[0].key.remoteJid, { text: m.messages[0].message.conversation })
-    })
+    callback(sock)
 }
 
 
-connectToWhatsapp()
+module.exports = { connectToWhatsapp }

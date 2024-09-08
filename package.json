@@ -4,8 +4,8 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "start": "node index",
-    "code" : "node index --pairing-code",
+    "start": "node app",
+    "code": "node app --pairing-code",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
